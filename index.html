@@ -748,8 +748,11 @@ textarea{resize:none; min-height:64px; line-height:1.4;}
     Html5Qrcode.getCameras().then(function(cameras){
       state.cameras = cameras || [];
       state.cameraIndex = 0;
-    }).catch(function(){ state.cameras = []; });
-    startCamera({ facingMode:"environment" });
+    }).catch(function(){
+      state.cameras = [];
+    }).then(function(){
+      startCamera({ facingMode:"environment" });
+    });
   }
   function closeScanner(){
     if(state.scanner){
