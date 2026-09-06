@@ -186,10 +186,10 @@ textarea{resize:none; min-height:64px; line-height:1.4;}
   margin-top:18px; border:1.5px solid rgba(255,255,255,.4); background:transparent; color:#fff;
   padding:10px 22px; border-radius:999px; font-size:13.5px; cursor:pointer;
 }
-.scanner-btn-row{display:flex; gap:10px; margin-top:18px;}
+.scanner-btn-row{display:flex; gap:8px; margin-top:18px; flex-wrap:wrap; justify-content:center;}
 .scanner-torch{
   border:1.5px solid rgba(255,255,255,.4); background:transparent; color:#fff;
-  padding:10px 22px; border-radius:999px; font-size:13.5px; cursor:pointer;
+  padding:10px 16px; border-radius:999px; font-size:13px; cursor:pointer; white-space:nowrap;
 }
 .scanner-torch.on{background:rgba(255,255,255,.25);}
 
@@ -389,6 +389,7 @@ textarea{resize:none; min-height:64px; line-height:1.4;}
   <div class="scanner-hint" id="scannerHint">책 뒷면 바코드를 네모 칸 안에 맞춰주세요<br><span style="opacity:.7;font-size:12px;">너무 가까이 대지 말고, 밝은 곳에서 10~15cm 정도 띄워보세요</span></div>
   <div class="scanner-btn-row">
     <button class="scanner-torch" id="btnTorch">🔦 손전등 켜기</button>
+    <button class="scanner-torch" id="btnSwitchCamera">🔄 다른 카메라</button>
     <button class="scanner-close" id="btnCloseScanner" style="margin-top:0;">닫기</button>
   </div>
 </div>
@@ -674,7 +675,10 @@ textarea{resize:none; min-height:64px; line-height:1.4;}
   document.getElementById('btnOpenScanner').addEventListener('click', openScanner);
   document.getElementById('btnCloseScanner').addEventListener('click', closeScanner);
   document.getElementById('btnTorch').addEventListener('click', toggleTorch);
+  document.getElementById('btnSwitchCamera').addEventListener('click', switchCamera);
   state.torchOn = false;
+  state.cameras = [];
+  state.cameraIndex = 0;
 
   function toggleTorch(){
     if(!state.scanner) return;
@@ -689,6 +693,47 @@ textarea{resize:none; min-height:64px; line-height:1.4;}
     });
   }
 
+  function buildScannerConfig(){
+    var config = { fps:10, qrbox:{ width:260, height:130 } };
+    if(Html5QrcodeSupportedFormats){
+      config.formatsToSupport = [Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8, Html5QrcodeSupportedFormats.UPC_A];
+    }
+    config.videoConstraints = {
+      advanced: [{ focusMode: "continuous" }],
+      width: { ideal: 1920 },
+      height: { ideal: 1080 }
+    };
+    return config;
+  }
+
+  function startCamera(cameraArg){
+    state.scanner = new Html5Qrcode("reader");
+    return state.scanner.start(cameraArg, buildScannerConfig(), function(decodedText){
+      onScanSuccess(decodedText);
+    }, function(){ /* ignore per-frame scan errors */ })
+    .catch(function(){
+      document.getElementById('scannerHint').textContent = '이 카메라를 사용할 수 없어요. 다른 카메라를 시도하거나 ISBN을 직접 입력해주세요.';
+    });
+  }
+
+  function switchCamera(){
+    if(!state.cameras || state.cameras.length < 2){
+      toast('전환할 다른 카메라를 찾지 못했어요');
+      return;
+    }
+    if(!state.scanner) return;
+    state.cameraIndex = (state.cameraIndex + 1) % state.cameras.length;
+    var cam = state.cameras[state.cameraIndex];
+    state.torchOn = false;
+    var torchBtn = document.getElementById('btnTorch');
+    torchBtn.textContent = '🔦 손전등 켜기';
+    torchBtn.classList.remove('on');
+    state.scanner.stop().catch(function(){}).then(function(){
+      startCamera({ deviceId:{ exact: cam.id } });
+      toast('카메라를 전환했어요 ('+(state.cameraIndex+1)+'/'+state.cameras.length+')');
+    });
+  }
+
   function openScanner(){
     document.getElementById('scannerOverlay').classList.add('active');
     state.torchOn = false;
@@ -700,23 +745,11 @@ textarea{resize:none; min-height:64px; line-height:1.4;}
       document.getElementById('scannerHint').textContent = '카메라 기능을 불러오지 못했어요. ISBN을 직접 입력해주세요.';
       return;
     }
-    state.scanner = new Html5Qrcode("reader");
-    var config = { fps:10, qrbox:{ width:260, height:130 } };
-    if(Html5QrcodeSupportedFormats){
-      config.formatsToSupport = [Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8, Html5QrcodeSupportedFormats.UPC_A];
-    }
-    config.videoConstraints = {
-      facingMode: "environment",
-      advanced: [{ focusMode: "continuous" }],
-      width: { ideal: 1920 },
-      height: { ideal: 1080 }
-    };
-    state.scanner.start({ facingMode:"environment" }, config, function(decodedText){
-      onScanSuccess(decodedText);
-    }, function(){ /* ignore per-frame scan errors */ })
-    .catch(function(){
-      document.getElementById('scannerHint').textContent = '카메라를 사용할 수 없어요. ISBN을 직접 입력해주세요.';
-    });
+    Html5Qrcode.getCameras().then(function(cameras){
+      state.cameras = cameras || [];
+      state.cameraIndex = 0;
+    }).catch(function(){ state.cameras = []; });
+    startCamera({ facingMode:"environment" });
   }
   function closeScanner(){
     if(state.scanner){
