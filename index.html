@@ -234,11 +234,16 @@ textarea{resize:none; min-height:64px; line-height:1.4;}
 .sheet-head h2{font-size:17px; line-height:1.35;}
 .sheet-head .pa{font-size:12.5px; color:var(--ink-soft); margin-top:4px;}
 .aladin-link{font-size:11.5px; color:var(--lav-2); text-decoration:none; display:inline-block; margin-top:6px;}
-.history-item{display:flex; gap:10px; padding:10px 2px; border-bottom:1px solid var(--line);}
+.history-item{display:flex; align-items:center; gap:10px; padding:10px 2px; border-bottom:1px solid var(--line);}
 .history-item:last-child{border-bottom:none;}
 .history-item .he{font-size:20px;}
 .history-item .hd{font-size:11.5px; color:var(--ink-faint);}
 .history-item .hn{font-size:13.5px; color:var(--ink); margin-top:1px;}
+.history-item .hbody{flex:1; min-width:0;}
+.history-del{
+  margin-left:auto; flex:0 0 auto; border:none; background:transparent; color:var(--ink-faint);
+  font-size:18px; line-height:1; padding:6px 8px; cursor:pointer;
+}
 .reread-cta{
   width:100%; border:none; border-radius:14px; padding:13px; margin-top:14px;
   background:linear-gradient(135deg,var(--coral-1),var(--coral-2)); color:white;
@@ -759,6 +764,38 @@ textarea{resize:none; min-height:64px; line-height:1.4;}
   /* ---------------- DETAIL SHEET ---------------- */
   var detailIsbn = null;
   document.getElementById('detailBackdrop').addEventListener('click', closeDetail);
+  function renderDetailHistory(isbn){
+    var b = state.data.books[isbn];
+    document.getElementById('detailCountTag').textContent = b.reads.length+'번';
+    var hist = b.reads.slice().reverse();
+    document.getElementById('detailHistory').innerHTML = hist.map(function(r){
+      return '<div class="history-item"><div class="he">'+r.emoji+'</div><div class="hbody"><div class="hd">'+fmtDate(r.date)+'</div>'
+        + (r.note ? '<div class="hn">'+escapeHtml(r.note)+'</div>' : '')+'</div>'
+        + '<button class="history-del" data-ts="'+r.ts+'" aria-label="이 기록 삭제">×</button></div>';
+    }).join('');
+    document.getElementById('detailHistory').querySelectorAll('.history-del').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var ts = Number(btn.dataset.ts);
+        var book = state.data.books[isbn];
+        if(!book) return;
+        var ok = confirm('이 기록 하나만 삭제할까요?');
+        if(!ok) return;
+        book.reads = book.reads.filter(function(r){ return r.ts !== ts; });
+        if(book.reads.length === 0){
+          delete state.data.books[isbn];
+          saveData();
+          closeDetail();
+          toast('마지막 기록이라 책도 함께 삭제했어요');
+        } else {
+          saveData();
+          renderDetailHistory(isbn);
+          toast('기록을 삭제했어요');
+        }
+        renderShelf(document.getElementById('shelfSearch').value || '');
+        if(state.currentScreen === 'home') renderHome();
+      });
+    });
+  }
   function openDetail(isbn){
     detailIsbn = isbn;
     var b = state.data.books[isbn];
@@ -768,12 +805,7 @@ textarea{resize:none; min-height:64px; line-height:1.4;}
     document.getElementById('detailAuthor').textContent = b.author||'';
     var link = document.getElementById('detailLink');
     if(b.link){ link.style.display='inline-block'; link.href = b.link; } else { link.style.display='none'; }
-    document.getElementById('detailCountTag').textContent = b.reads.length+'번';
-    var hist = b.reads.slice().reverse();
-    document.getElementById('detailHistory').innerHTML = hist.map(function(r){
-      return '<div class="history-item"><div class="he">'+r.emoji+'</div><div><div class="hd">'+fmtDate(r.date)+'</div>'
-        + (r.note ? '<div class="hn">'+escapeHtml(r.note)+'</div>' : '')+'</div></div>';
-    }).join('');
+    renderDetailHistory(isbn);
     document.getElementById('detailBackdrop').classList.add('active');
     document.getElementById('detailSheet').classList.add('active');
   }
