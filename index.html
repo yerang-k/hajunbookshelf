@@ -677,7 +677,7 @@ textarea{resize:none; min-height:64px; line-height:1.4;}
     if(Html5QrcodeSupportedFormats){
       config.formatsToSupport = [Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8, Html5QrcodeSupportedFormats.UPC_A];
     }
-    state.scanner.start({ facingMode:"environment", advanced:[{ focusMode:"continuous" }] }, config, function(decodedText){
+    state.scanner.start({ facingMode:"environment", advanced:[{ focusMode:"continuous" }], width:{ideal:1920}, height:{ideal:1080} }, config, function(decodedText){
       onScanSuccess(decodedText);
     }, function(){ /* ignore per-frame scan errors */ })
     .catch(function(){
