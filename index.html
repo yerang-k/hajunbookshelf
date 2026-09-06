@@ -522,12 +522,15 @@ textarea{resize:none; min-height:64px; line-height:1.4;}
       return;
     }
     list.innerHTML = recent.map(function(x){
-      return '<div class="recent-row">'
+      return '<div class="recent-row" data-isbn="'+escapeAttr(x.book.isbn)+'" style="cursor:pointer;">'
         + '<img class="cover-sm" src="'+escapeAttr(x.book.cover)+'" onerror="this.style.background=\'linear-gradient(160deg,#C9B8FA,#8E78EC)\'; this.removeAttribute(\'src\')">'
         + '<div class="recent-info"><div class="rt">'+escapeHtml(x.book.title)+'</div><div class="rs">'+fmtDate(x.read.date)+'</div></div>'
         + '<div class="recent-emoji">'+x.read.emoji+'</div>'
         + '</div>';
     }).join('');
+    list.querySelectorAll('[data-isbn]').forEach(function(row){
+      row.addEventListener('click', function(){ openDetail(row.dataset.isbn); });
+    });
   }
 
   /* ---------------- ADD SCREEN ---------------- */
