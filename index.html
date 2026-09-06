@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>하준이의 책장</title>
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#FF7A50">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="하준이의 책장">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
 <style>
@@ -236,6 +244,10 @@ textarea{resize:none; min-height:64px; line-height:1.4;}
   background:linear-gradient(135deg,var(--coral-1),var(--coral-2)); color:white;
   font-family:'Jua',sans-serif; font-size:14.5px; cursor:pointer;
 }
+.delete-cta{
+  width:100%; border:none; background:transparent; color:#D1495B;
+  font-size:13px; padding:12px; margin-top:6px; cursor:pointer;
+}
 
 .toast{
   position:fixed; left:50%; bottom:118px; transform:translateX(-50%) translateY(10px);
@@ -324,7 +336,7 @@ textarea{resize:none; min-height:64px; line-height:1.4;}
     </div>
 
     <button class="ghost-btn" id="btnManualFallback" style="display:none;">직접 제목을 입력해서 등록할래요</button>
-    <p class="aladin-credit" id="aladinCredit" style="display:none;">도서 정보 제공: 알라딘 인터넷서점(www.aladin.co.kr)</p>
+    <p class="aladin-credit" id="aladinCredit" style="display:none;">도서 정보 제공: 카카오</p>
   </section>
 
   <!-- ============ SHELF ============ -->
@@ -385,12 +397,13 @@ textarea{resize:none; min-height:64px; line-height:1.4;}
     <div>
       <h2 id="detailTitle"></h2>
       <div class="pa" id="detailAuthor"></div>
-      <a class="aladin-link" id="detailLink" href="#" target="_blank" rel="noopener" style="display:none;">알라딘에서 보기 →</a>
+      <a class="aladin-link" id="detailLink" href="#" target="_blank" rel="noopener" style="display:none;">다음 책 정보 보기 →</a>
     </div>
   </div>
   <div class="section-title">읽은 기록<span class="tag" id="detailCountTag">0번</span></div>
   <div id="detailHistory"></div>
   <button class="reread-cta" id="btnDetailReread">오늘 또 읽었어요</button>
+  <button class="delete-cta" id="btnDetailDelete">이 책 책장에서 삭제하기</button>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -562,7 +575,7 @@ textarea{resize:none; min-height:64px; line-height:1.4;}
 
   function lookupBook(isbn){
     var msg = document.getElementById('lookupMsg');
-    msg.innerHTML = '<div class="lookup-msg">알라딘에서 책 정보를 찾고 있어요...</div>';
+    msg.innerHTML = '<div class="lookup-msg">책 정보를 찾고 있어요...</div>';
     document.getElementById('previewArea').innerHTML = '';
     document.getElementById('feelingArea').style.display = 'none';
     document.getElementById('btnManualFallback').style.display = 'none';
@@ -580,7 +593,7 @@ textarea{resize:none; min-height:64px; line-height:1.4;}
         showPreview(r.body, isbn);
       })
       .catch(function(){
-        msg.innerHTML = '<div class="lookup-msg err">알라딘 서버에 연결하지 못했어요.</div>';
+        msg.innerHTML = '<div class="lookup-msg err">책 정보 서버에 연결하지 못했어요.</div>';
         document.getElementById('btnManualFallback').style.display = 'block';
       });
   }
@@ -769,6 +782,19 @@ textarea{resize:none; min-height:64px; line-height:1.4;}
     var isbn = detailIsbn;
     closeDetail();
     startQuickReread(isbn);
+  });
+  document.getElementById('btnDetailDelete').addEventListener('click', function(){
+    var isbn = detailIsbn;
+    var book = state.data.books[isbn];
+    if(!book) return;
+    var ok = confirm('"'+book.title+'"을(를) 책장에서 삭제할까요?\n읽은 기록도 함께 사라져요.');
+    if(!ok) return;
+    delete state.data.books[isbn];
+    saveData();
+    closeDetail();
+    toast('책장에서 삭제했어요');
+    renderShelf(document.getElementById('shelfSearch').value || '');
+    if(state.currentScreen === 'home') renderHome();
   });
 
   /* ---------------- STATS ---------------- */
