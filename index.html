@@ -326,8 +326,9 @@ textarea{resize:none; min-height:64px; line-height:1.4;}
     <button class="scan-btn" id="btnOpenScanner">
       <svg class="scan-icon" viewBox="0 0 24 24" fill="none"><rect x="3" y="6" width="2" height="12" fill="white"/><rect x="7" y="6" width="1" height="12" fill="white"/><rect x="10" y="6" width="3" height="12" fill="white"/><rect x="15" y="6" width="1" height="12" fill="white"/><rect x="18" y="6" width="3" height="12" fill="white"/></svg>
       <span class="a-title">바코드 찍기</span>
-      <span class="a-sub">카메라로 뒷면 ISBN을 스캔해요</span>
+      <span class="a-sub">사진을 찍으면 ISBN을 알아서 찾아요</span>
     </button>
+    <input type="file" id="barcodePhotoInput" accept="image/*" capture="environment" style="display:none;">
 
     <div class="divider">또는 ISBN 직접 입력</div>
     <span class="field-label">ISBN (10~13자리)</span>
@@ -386,9 +387,9 @@ textarea{resize:none; min-height:64px; line-height:1.4;}
 <!-- scanner overlay -->
 <div class="scanner-overlay" id="scannerOverlay">
   <div class="scanner-box"><div id="reader"></div></div>
-  <div class="scanner-hint" id="scannerHint">책 뒷면 바코드를 네모 칸 안에 맞춰주세요<br><span style="opacity:.7;font-size:12px;">너무 가까이 대지 말고, 밝은 곳에서 10~15cm 정도 띄워보세요</span></div>
+  <div class="scanner-hint" id="scannerHint">사진에서 바코드를 찾는 중...</div>
   <div class="scanner-btn-row">
-    <button class="scanner-torch" id="btnTorch">🔦 손전등 켜기</button>
+    <button class="scanner-torch" id="btnRetryPhoto" style="display:none;">📷 다시 찍기</button>
     <button class="scanner-close" id="btnCloseScanner" style="margin-top:0;">닫기</button>
   </div>
 </div>
@@ -670,66 +671,43 @@ textarea{resize:none; min-height:64px; line-height:1.4;}
     goto('home');
   });
 
-  /* ---------------- BARCODE SCANNER ---------------- */
-  document.getElementById('btnOpenScanner').addEventListener('click', openScanner);
+  /* ---------------- BARCODE SCANNER (photo-based) ---------------- */
+  document.getElementById('btnOpenScanner').addEventListener('click', function(){
+    document.getElementById('barcodePhotoInput').click();
+  });
+  document.getElementById('barcodePhotoInput').addEventListener('change', function(e){
+    var file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if(!file) return;
+    handleBarcodePhoto(file);
+  });
   document.getElementById('btnCloseScanner').addEventListener('click', closeScanner);
-  document.getElementById('btnTorch').addEventListener('click', toggleTorch);
-  state.torchOn = false;
+  document.getElementById('btnRetryPhoto').addEventListener('click', function(){
+    closeScanner();
+    document.getElementById('barcodePhotoInput').click();
+  });
 
-  function toggleTorch(){
-    if(!state.scanner) return;
-    var next = !state.torchOn;
-    state.scanner.applyVideoConstraints({ advanced:[{ torch: next }] }).then(function(){
-      state.torchOn = next;
-      var btn = document.getElementById('btnTorch');
-      btn.textContent = next ? '🔦 손전등 끄기' : '🔦 손전등 켜기';
-      btn.classList.toggle('on', next);
-    }).catch(function(){
-      toast('이 기기에서는 손전등을 지원하지 않아요');
-    });
-  }
-
-  function buildScannerConfig(){
-    var config = { fps:10, qrbox:{ width:260, height:130 } };
-    if(Html5QrcodeSupportedFormats){
-      config.formatsToSupport = [Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8, Html5QrcodeSupportedFormats.UPC_A];
-    }
-    config.videoConstraints = {
-      facingMode: { exact: "environment" },
-      advanced: [{ focusMode: "continuous" }],
-      width: { ideal: 1920 },
-      height: { ideal: 1080 }
-    };
-    return config;
-  }
-
-  function openScanner(){
+  function handleBarcodePhoto(file){
     document.getElementById('scannerOverlay').classList.add('active');
-    state.torchOn = false;
-    var torchBtn = document.getElementById('btnTorch');
-    torchBtn.textContent = '🔦 손전등 켜기';
-    torchBtn.classList.remove('on');
-    document.getElementById('scannerHint').innerHTML = '책 뒷면 바코드를 네모 칸 안에 맞춰주세요<br><span style="opacity:.7;font-size:12px;">너무 가까이 대지 말고, 밝은 곳에서 10~15cm 정도 띄워보세요</span>';
+    document.getElementById('reader').innerHTML = '';
+    document.getElementById('scannerHint').textContent = '사진에서 바코드를 찾는 중...';
+    document.getElementById('btnRetryPhoto').style.display = 'none';
     if(typeof Html5Qrcode === 'undefined'){
-      document.getElementById('scannerHint').textContent = '카메라 기능을 불러오지 못했어요. ISBN을 직접 입력해주세요.';
+      document.getElementById('scannerHint').textContent = '인식 기능을 불러오지 못했어요. ISBN을 직접 입력해주세요.';
+      document.getElementById('btnRetryPhoto').style.display = 'none';
       return;
     }
-    state.scanner = new Html5Qrcode("reader");
-    state.scanner.start({ facingMode: { exact: "environment" } }, buildScannerConfig(), function(decodedText){
+    var scanner = new Html5Qrcode("reader");
+    scanner.scanFile(file, true).then(function(decodedText){
       onScanSuccess(decodedText);
-    }, function(){ /* ignore per-frame scan errors */ })
-    .catch(function(){
-      document.getElementById('scannerHint').textContent = '카메라를 사용할 수 없어요. ISBN을 직접 입력해주세요.';
+    }).catch(function(){
+      document.getElementById('scannerHint').textContent = '바코드를 찾지 못했어요. 바코드가 화면 가득, 반듯하게 나오게 다시 찍어주세요.';
+      document.getElementById('btnRetryPhoto').style.display = 'inline-block';
     });
   }
   function closeScanner(){
-    if(state.scanner){
-      state.scanner.stop().catch(function(){}).then(function(){
-        document.getElementById('scannerOverlay').classList.remove('active');
-      });
-    } else {
-      document.getElementById('scannerOverlay').classList.remove('active');
-    }
+    document.getElementById('scannerOverlay').classList.remove('active');
+    document.getElementById('reader').innerHTML = '';
   }
   function onScanSuccess(text){
     var isbn = text.replace(/[^0-9Xx]/g,'');
