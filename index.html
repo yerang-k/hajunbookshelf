@@ -186,6 +186,12 @@ textarea{resize:none; min-height:64px; line-height:1.4;}
   margin-top:18px; border:1.5px solid rgba(255,255,255,.4); background:transparent; color:#fff;
   padding:10px 22px; border-radius:999px; font-size:13.5px; cursor:pointer;
 }
+.scanner-btn-row{display:flex; gap:10px; margin-top:18px;}
+.scanner-torch{
+  border:1.5px solid rgba(255,255,255,.4); background:transparent; color:#fff;
+  padding:10px 22px; border-radius:999px; font-size:13.5px; cursor:pointer;
+}
+.scanner-torch.on{background:rgba(255,255,255,.25);}
 
 /* ---------- shelf ---------- */
 .shelf-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:12px;}
@@ -381,7 +387,10 @@ textarea{resize:none; min-height:64px; line-height:1.4;}
 <div class="scanner-overlay" id="scannerOverlay">
   <div class="scanner-box"><div id="reader"></div></div>
   <div class="scanner-hint" id="scannerHint">책 뒷면 바코드를 네모 칸 안에 맞춰주세요<br><span style="opacity:.7;font-size:12px;">너무 가까이 대지 말고, 밝은 곳에서 10~15cm 정도 띄워보세요</span></div>
-  <button class="scanner-close" id="btnCloseScanner">닫기</button>
+  <div class="scanner-btn-row">
+    <button class="scanner-torch" id="btnTorch">🔦 손전등 켜기</button>
+    <button class="scanner-close" id="btnCloseScanner" style="margin-top:0;">닫기</button>
+  </div>
 </div>
 
 <!-- reread picker sheet -->
@@ -664,9 +673,28 @@ textarea{resize:none; min-height:64px; line-height:1.4;}
   /* ---------------- BARCODE SCANNER ---------------- */
   document.getElementById('btnOpenScanner').addEventListener('click', openScanner);
   document.getElementById('btnCloseScanner').addEventListener('click', closeScanner);
+  document.getElementById('btnTorch').addEventListener('click', toggleTorch);
+  state.torchOn = false;
+
+  function toggleTorch(){
+    if(!state.scanner) return;
+    var next = !state.torchOn;
+    state.scanner.applyVideoConstraints({ advanced:[{ torch: next }] }).then(function(){
+      state.torchOn = next;
+      var btn = document.getElementById('btnTorch');
+      btn.textContent = next ? '🔦 손전등 끄기' : '🔦 손전등 켜기';
+      btn.classList.toggle('on', next);
+    }).catch(function(){
+      toast('이 기기에서는 손전등을 지원하지 않아요');
+    });
+  }
 
   function openScanner(){
     document.getElementById('scannerOverlay').classList.add('active');
+    state.torchOn = false;
+    var torchBtn = document.getElementById('btnTorch');
+    torchBtn.textContent = '🔦 손전등 켜기';
+    torchBtn.classList.remove('on');
     document.getElementById('scannerHint').innerHTML = '책 뒷면 바코드를 네모 칸 안에 맞춰주세요<br><span style="opacity:.7;font-size:12px;">너무 가까이 대지 말고, 밝은 곳에서 10~15cm 정도 띄워보세요</span>';
     if(typeof Html5Qrcode === 'undefined'){
       document.getElementById('scannerHint').textContent = '카메라 기능을 불러오지 못했어요. ISBN을 직접 입력해주세요.';
