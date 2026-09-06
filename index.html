@@ -746,7 +746,13 @@ textarea{resize:none; min-height:64px; line-height:1.4;}
       return;
     }
     Html5Qrcode.getCameras().then(function(cameras){
-      state.cameras = cameras || [];
+      cameras = cameras || [];
+      var backOnly = cameras.filter(function(c){
+        var label = (c.label || '').toLowerCase();
+        return label.indexOf('front') === -1 && label.indexOf('user') === -1
+          && label.indexOf('selfie') === -1 && label.indexOf('전면') === -1;
+      });
+      state.cameras = backOnly.length > 0 ? backOnly : cameras;
       state.cameraIndex = 0;
     }).catch(function(){
       state.cameras = [];
