@@ -20,6 +20,7 @@
  */
 
 var COLUMNS = ['ISBN', '제목', '저자', '출판사', '표지', '링크', '분류', '날짜', '이모지', '메모', '등록시각'];
+var DATE_COL_INDEX = COLUMNS.indexOf('날짜') + 1; // 1-indexed sheet column
 
 function doGet(e) {
   try {
@@ -94,7 +95,20 @@ function getOrCreateSheet_(name) {
   } else if (sheet.getLastRow() === 0) {
     sheet.appendRow(COLUMNS);
   }
+  // Force the 날짜 column to plain text so Sheets doesn't auto-convert
+  // "2026-09-13"-style strings into a real Date (which then serializes as
+  // a full ISO timestamp like "2026-09-13T00:00:00.000Z" when read back).
+  sheet.getRange(1, DATE_COL_INDEX, Math.max(sheet.getMaxRows(), 1000), 1).setNumberFormat('@');
   return sheet;
+}
+
+function normalizeDateValue_(val) {
+  if (Object.prototype.toString.call(val) === '[object Date]') {
+    return Utilities.formatDate(val, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  }
+  var s = String(val || '');
+  var t = s.indexOf('T');
+  return t !== -1 ? s.slice(0, t) : s;
 }
 
 function readBooks_(sheet) {
@@ -116,7 +130,7 @@ function readBooks_(sheet) {
       };
     }
     books[isbn].reads.push({
-      date: rec['날짜'] || '', emoji: rec['이모지'] || '', note: rec['메모'] || '',
+      date: normalizeDateValue_(rec['날짜']), emoji: rec['이모지'] || '', note: rec['메모'] || '',
       ts: Number(rec['등록시각']) || 0
     });
   }
