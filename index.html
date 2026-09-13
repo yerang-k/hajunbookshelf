@@ -49,7 +49,12 @@ button{font-family:inherit;}
 }
 
 /* ---------- header ---------- */
-.topbar{display:flex; align-items:center; justify-content:space-between; margin-bottom:18px;}
+.topbar{display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; flex-wrap:wrap; gap:8px;}
+.topbar-right{display:flex; align-items:center; gap:8px;}
+.settings-btn{
+  width:36px; height:36px; flex:0 0 auto; border-radius:50%; border:1px solid var(--line);
+  background:var(--paper); font-size:15px; cursor:pointer; box-shadow:var(--shadow-card);
+}
 .brand{display:flex; align-items:center; gap:10px;}
 .brand-text .eyebrow{font-size:12.5px; color:var(--ink-soft); display:block; margin-bottom:1px;}
 .brand-text h1{font-size:23px; color:var(--ink); letter-spacing:.2px;}
@@ -282,7 +287,10 @@ textarea{resize:none; min-height:64px; line-height:1.4;}
         <h1>하준이의 책장</h1>
       </div>
     </div>
-    <div class="today-badge"><span class="dot"></span>오늘 <b id="todayCount">0</b>권 읽었어</div>
+    <div class="topbar-right">
+      <div class="today-badge"><span class="dot"></span>오늘 <b id="todayCount">0</b>권 읽었어</div>
+      <button class="settings-btn" id="btnOpenSettings" aria-label="설정">⚙️</button>
+    </div>
   </div>
 
   <!-- ============ HOME ============ -->
@@ -422,6 +430,17 @@ textarea{resize:none; min-height:64px; line-height:1.4;}
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- settings sheet -->
+<div class="sheet-backdrop" id="settingsBackdrop"></div>
+<div class="sheet" id="settingsSheet">
+  <div class="sheet-handle"></div>
+  <h2 style="font-size:16.5px; margin-bottom:14px;">설정</h2>
+  <span class="field-label">스프레드시트 연동 URL (선택)</span>
+  <input type="text" id="settingsSheetInput" placeholder="구글 Apps Script 웹 앱 URL" style="margin-bottom:14px;">
+  <button class="submit-btn" id="btnSaveSettings">저장</button>
+  <p class="aladin-credit">연동 URL은 이 브라우저에만 저장돼요. 켜두면 여러 기기에서도 기록이 이어져요.</p>
+</div>
 
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
@@ -664,12 +683,85 @@ textarea{resize:none; min-height:64px; line-height:1.4;}
       state.data.books[pb.isbn] = book;
     }
     var note = document.getElementById('noteInput').value.trim();
-    book.reads.push({ date: todayStr(), emoji: state.pendingEmoji, note: note, ts: Date.now() });
+    var newRead = { date: todayStr(), emoji: state.pendingEmoji, note: note, ts: Date.now() };
+    book.reads.push(newRead);
     saveData();
+    sheetPost('addRead', { book: { isbn:book.isbn, title:book.title, author:book.author, publisher:book.publisher, cover:book.cover, link:book.link }, read: newRead });
     var n = book.reads.length;
     toast(n>1 ? (n+'번째로 읽었어요! 🎉') : '책장에 담았어요! 🎉');
     goto('home');
   });
+
+  /* ---------------- SETTINGS ---------------- */
+  var SETTINGS_KEY = 'reading-app-settings-v1';
+  var SHEET_TAB_NAME = '하준이';
+  function loadSettings(){
+    try{
+      var raw = localStorage.getItem(SETTINGS_KEY);
+      if(raw) return JSON.parse(raw);
+    }catch(e){}
+    return { sheetUrl:'' };
+  }
+  function saveSettings(){ localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings)); }
+  state.settings = loadSettings();
+
+  document.getElementById('btnOpenSettings').addEventListener('click', openSettings);
+  document.getElementById('settingsBackdrop').addEventListener('click', closeSettings);
+  function openSettings(){
+    document.getElementById('settingsSheetInput').value = state.settings.sheetUrl || '';
+    document.getElementById('settingsBackdrop').classList.add('active');
+    document.getElementById('settingsSheet').classList.add('active');
+  }
+  function closeSettings(){
+    document.getElementById('settingsBackdrop').classList.remove('active');
+    document.getElementById('settingsSheet').classList.remove('active');
+  }
+  document.getElementById('btnSaveSettings').addEventListener('click', function(){
+    var previousUrl = state.settings.sheetUrl || '';
+    state.settings.sheetUrl = document.getElementById('settingsSheetInput').value.trim();
+    saveSettings();
+    closeSettings();
+    toast('설정을 저장했어요');
+
+    if(state.settings.sheetUrl && state.settings.sheetUrl !== previousUrl){
+      var hasLocalBooks = Object.keys(state.data.books).length > 0;
+      if(hasLocalBooks && confirm('지금까지 이 기기에 저장된 책 기록을 스프레드시트로 올릴까요?\n(스프레드시트에 이미 있던 내용은 덮어써져요)')){
+        sheetPost('replaceAll', { books: state.data.books });
+        toast('스프레드시트로 업로드했어요');
+      } else {
+        syncFromSheet();
+      }
+    }
+  });
+
+  function sheetPost(action, payload){
+    if(!state.settings.sheetUrl) return;
+    payload = payload || {};
+    payload.action = action;
+    payload.sheet = SHEET_TAB_NAME;
+    fetch(state.settings.sheetUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    }).catch(function(){ /* best-effort; local copy already saved */ });
+  }
+
+  function syncFromSheet(){
+    if(!state.settings.sheetUrl) return;
+    fetch(state.settings.sheetUrl + '?sheet=' + encodeURIComponent(SHEET_TAB_NAME))
+      .then(function(res){ return res.json(); })
+      .then(function(data){
+        if(data && data.books){
+          state.data.books = data.books;
+          saveData();
+          renderHome();
+          if(state.currentScreen === 'shelf') renderShelf(document.getElementById('shelfSearch').value || '');
+          if(state.currentScreen === 'stats') renderStats();
+        }
+      })
+      .catch(function(){ /* offline or misconfigured - keep local cache as-is */ });
+  }
+  syncFromSheet();
 
   /* ---------------- BARCODE SCANNER (photo-based) ---------------- */
   document.getElementById('btnOpenScanner').addEventListener('click', function(){
@@ -800,10 +892,12 @@ textarea{resize:none; min-height:64px; line-height:1.4;}
         if(book.reads.length === 0){
           delete state.data.books[isbn];
           saveData();
+          sheetPost('deleteBook', { isbn: isbn });
           closeDetail();
           toast('마지막 기록이라 책도 함께 삭제했어요');
         } else {
           saveData();
+          sheetPost('deleteRead', { ts: ts });
           renderDetailHistory(isbn);
           toast('기록을 삭제했어요');
         }
@@ -842,6 +936,7 @@ textarea{resize:none; min-height:64px; line-height:1.4;}
     if(!ok) return;
     delete state.data.books[isbn];
     saveData();
+    sheetPost('deleteBook', { isbn: isbn });
     closeDetail();
     toast('책장에서 삭제했어요');
     renderShelf(document.getElementById('shelfSearch').value || '');
