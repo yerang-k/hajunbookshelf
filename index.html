@@ -490,7 +490,12 @@ textarea{resize:none; min-height:64px; line-height:1.4;}
     return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   }
   function fmtDate(iso){
-    var p = iso.split('-'); return p[1]+'월 '+p[2]+'일';
+    var s = String(iso || '');
+    var t = s.indexOf('T');
+    if(t !== -1) s = s.slice(0, t);
+    var p = s.split('-');
+    if(p.length < 3) return s;
+    return p[1]+'월 '+p[2]+'일';
   }
 
   /* ---------------- navigation ---------------- */
